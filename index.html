@@ -1161,12 +1161,10 @@ let S={
 };
 
 // ══════════════════════════════════════════════════════
-// SUPABASE CONFIG  ← paste your values here
-// ══════════════════════════════════════════════════════
 // SUPABASE CONFIG  ← paste your two values here
 // ══════════════════════════════════════════════════════
-const SUPABASE_URL = 'https://xpbywpzjvynedekvttci.supabase.co';      // e.g. 'https://abcxyz.supabase.co'
-const SUPABASE_KEY = 'sb_publishable_KxVM5BKUtnHZEBgh_p1UMw_i4XvPQ5g'; // long eyJ... string
+const SUPABASE_URL = 'YOUR_SUPABASE_URL';      // e.g. 'https://abcxyz.supabase.co'
+const SUPABASE_KEY = 'YOUR_SUPABASE_ANON_KEY'; // long eyJ... string
 // ══════════════════════════════════════════════════════
 
 let _supa        = null;   // Supabase client
@@ -1178,11 +1176,26 @@ let _pollTimer   = null;   // periodic poll fallback
 let _lastRemoteTs = 0;     // timestamp of last received remote save
 
 // ── localStorage (instant, always works offline) ────
+
+// Keys that are runtime-only — never synced to cloud or localStorage
+const RUNTIME_KEYS = new Set([
+  'timerSecs','timerMax','timerRunning','timerInterval',
+  'timerLabel','sessionsToday','sessionLog','retroMonth','currentPanel'
+]);
+
 function LS_local(){
   try{const d=localStorage.getItem('studyos_v3');if(d){const p=JSON.parse(d);S={...S,...p};}}catch(e){}
 }
+
+// Strip runtime-only keys before any persistence — timer state must never sync
+function _persistable(){
+  const out={};
+  Object.keys(S).forEach(k=>{ if(!RUNTIME_KEYS.has(k)) out[k]=S[k]; });
+  return out;
+}
+
 function SS_local(){
-  try{localStorage.setItem('studyos_v3',JSON.stringify(S));}catch(e){}
+  try{localStorage.setItem('studyos_v3',JSON.stringify(_persistable()));}catch(e){}
 }
 
 // ── SS: save locally immediately, push to cloud after 1.5s ──
@@ -1213,50 +1226,66 @@ async function LS(){
 }
 
 // ── Apply remote data if it is newer than local ──
+// Only syncs persistent data — never overwrites runtime timer state
 function _applyRemote(remote){
   const remoteTs = remote._savedAt||0;
   const localTs  = S._savedAt||0;
-  if(remoteTs > localTs){
-    // Remote is newer — merge it in
-    S={...S,...remote};
-    SS_local();
-    _lastRemoteTs = remoteTs;
-    // Rebuild all UI panels to reflect new data
-    _rebuildUI();
-    setSyncStatus('synced');
-  }
+  if(remoteTs <= localTs) return; // local is same age or newer — nothing to do
+
+  // Merge only persistent keys — skip runtime-only ones
+  Object.keys(remote).forEach(k=>{
+    if(!RUNTIME_KEYS.has(k)) S[k] = remote[k];
+  });
+  S._savedAt = remoteTs;
+  SS_local();
+  _lastRemoteTs = remoteTs;
+  _rebuildUI();
+  setSyncStatus('synced');
 }
 
-// ── Rebuild all visible UI after remote sync ──
+// ── Rebuild ALL UI after a remote sync ──
 function _rebuildUI(){
   try{
-    buildSchedule();
+    // Always rebuild these — they appear on every panel
+    updateCountdown();
     buildSideStreak();
-    buildHabits();
-    buildLog();
-    buildSessionLog();
-    loadNotes();
     applyTheme();
-    // Rebuild whichever panel is currently open
+
+    // Rebuild the currently visible panel
     const active = document.querySelector('.panel.active');
-    if(active){
-      const id = active.id.replace('panel-','');
-      const rebuilders = {
-        weekly: buildWeekGrid,
-        streak: buildStreakGraph,
-        progress: buildProgressPanel,
-        habits: buildHabits,
-        log: buildLog,
-        notes: loadNotes,
-        mock: ()=>{buildMockList();buildMockTrend();},
-        errors: buildErrors,
-        goals: buildWeeklyGoals,
-        flashcards: buildFlashcards,
-        retrocal: buildRetroCalendar,
-      };
-      if(rebuilders[id]) rebuilders[id]();
+    const panelId = active ? active.id.replace('panel-','') : 'today';
+
+    const rebuilders = {
+      today:      ()=>{ buildSchedule(); },
+      streak:     ()=>{ buildStreakGraph(); },
+      weekly:     ()=>{ buildWeekGrid(); },
+      retrocal:   ()=>{ buildRetroCalendar(); },
+      progress:   ()=>{ buildProgressPanel(); },
+      habits:     ()=>{ buildHabits(); },
+      timer:      ()=>{ buildSessionLog(); updateTimerDisplay(); },
+      mock:       ()=>{ buildMockList(); buildMockTrend(); },
+      errors:     ()=>{ buildErrors(); },
+      goals:      ()=>{ buildWeeklyGoals(); },
+      flashcards: ()=>{ buildFlashcards(); },
+      log:        ()=>{ buildLog(); },
+      notes:      ()=>{ loadNotes(); },
+      syllabus:   ()=>{ buildSyllabus(); },
+      resources:  ()=>{ buildResourceList(); },
+      suggestions:()=>{ buildSuggestions(); },
+    };
+
+    if(rebuilders[panelId]) rebuilders[panelId]();
+
+    // Always refresh schedule blocks and habit goals on today panel
+    // even if another panel is active (stats in sidebar still reflect today)
+    if(panelId !== 'today'){
+      buildSchedule(); // keeps stats row + side goals fresh
+      buildHabits();
+      buildLog();
+      loadNotes();
     }
-  }catch(e){console.warn('UI rebuild error:',e);}
+
+  }catch(e){ console.warn('UI rebuild error:',e); }
 }
 
 // ── Save to Supabase ──
@@ -1266,9 +1295,10 @@ async function _cloudSave(){
   SS_local();
   setSyncStatus('saving');
   try{
+    const payload = _persistable(); // strip runtime keys before cloud save
     const{error}=await _supa.from('studyos_data')
       .upsert(
-        {user_id:_userId, data:S, updated_at:new Date().toISOString()},
+        {user_id:_userId, data:payload, updated_at:new Date().toISOString()},
         {onConflict:'user_id'}
       );
     if(error)throw error;
