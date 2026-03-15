@@ -208,15 +208,18 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
 .hm-cell{border-radius:4px;height:22px;display:flex;align-items:center;justify-content:center;cursor:default;font-size:9px;transition:opacity .2s}
 .hm-cell:hover{opacity:.8}
 /* WEEKLY TRACKER */
-.week-grid{display:grid;grid-template-columns:80px repeat(7,1fr);gap:1px;background:var(--border);border-radius:10px;overflow:hidden;min-width:520px}
-.wg-head{background:var(--bg2);padding:7px;font-family:var(--mono);font-size:9px;letter-spacing:1px;text-transform:uppercase;color:var(--text3);text-align:center}
-.wg-label{background:var(--bg2);padding:7px 8px;font-size:10px;color:var(--text2);display:flex;align-items:center;gap:5px}
-.wg-cell{background:var(--bg2);padding:6px;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:background .1s;min-height:30px}
-.wg-cell:hover{background:var(--bg3)}
-.wg-cell.done{background:rgba(78,203,138,.1)} .wg-cell.done .ci{color:var(--uni)}
-.wg-cell.skip{background:rgba(240,107,107,.07)} .wg-cell.skip .ci{color:var(--pt)}
-.wg-cell.na{background:var(--bg3)}
-.ci{font-size:12px;color:var(--text3)}
+.week-grid{display:grid;grid-template-columns:88px repeat(7,1fr);gap:2px;border-radius:14px;overflow:hidden;min-width:520px;background:var(--bg3);padding:3px}
+.wg-head{background:transparent;padding:8px 4px;font-family:var(--mono);font-size:9px;letter-spacing:1px;text-transform:uppercase;color:var(--text3);text-align:center}
+.wg-head.today-col{color:var(--accent);font-weight:600}
+.wg-label{background:var(--bg2);padding:8px 10px;font-size:10.5px;font-weight:500;color:var(--text2);display:flex;align-items:center;gap:6px;border-radius:8px}
+.wg-cell{background:var(--bg2);padding:6px 4px;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all .15s;min-height:36px;border-radius:8px;position:relative}
+.wg-cell:hover{background:var(--bg3);transform:scale(1.08);z-index:1}
+.wg-cell.done{background:rgba(78,203,138,.15);box-shadow:inset 0 0 0 1px rgba(78,203,138,.2)} .wg-cell.done .ci{color:var(--uni);font-size:15px}
+.wg-cell.skip{background:rgba(240,107,107,.1);box-shadow:inset 0 0 0 1px rgba(240,107,107,.15)} .wg-cell.skip .ci{color:var(--pt)}
+.wg-cell.na{background:var(--bg4)} .wg-cell.na .ci{color:var(--text3);opacity:.5}
+.wg-cell.today-col{box-shadow:inset 0 0 0 1px rgba(108,139,239,.2);background:rgba(108,139,239,.06)}
+.wg-cell.today-col.done{background:rgba(78,203,138,.2);box-shadow:inset 0 0 0 1.5px rgba(78,203,138,.4)}
+.ci{font-size:13px;color:var(--text3)}
 /* PROGRESS */
 .progress-panels{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 .prog-card{background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:16px}
@@ -286,11 +289,23 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
 .log-del{margin-left:auto;cursor:pointer;color:var(--text3);font-size:13px;opacity:0;transition:opacity .15s}
 .log-item:hover .log-del{opacity:1}
 /* HABITS */
-.habit-list{display:flex;flex-direction:column;gap:5px}
-.habit-item{display:flex;align-items:center;gap:9px;padding:9px 12px;background:var(--bg2);border:1px solid var(--border);border-radius:10px;transition:all .15s}
-.habit-item:hover{border-color:var(--border2)}
-.habit-check{width:21px;height:21px;border-radius:6px;border:1.5px solid var(--border2);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:10px;transition:all .15s;flex-shrink:0}
-.habit-check.done{background:var(--uni);border-color:var(--uni);color:#fff}
+.habit-list{display:flex;flex-direction:column;gap:7px}
+.habit-item{display:flex;align-items:center;gap:12px;padding:13px 15px;background:var(--bg2);border:1px solid var(--border);border-radius:14px;transition:all .2s;position:relative;overflow:hidden}
+.habit-item::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--border);transition:background .2s}
+.habit-item.done-item{border-color:rgba(78,203,138,.2)}
+.habit-item.done-item::before{background:var(--uni)}
+.habit-item:hover{border-color:var(--border2);transform:translateX(2px)}
+.habit-check{width:26px;height:26px;border-radius:50%;border:2px solid var(--border2);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:13px;transition:all .2s;flex-shrink:0;background:var(--bg3)}
+.habit-check:hover{border-color:var(--uni);background:rgba(78,203,138,.1)}
+.habit-check.done{background:var(--uni);border-color:var(--uni);color:#fff;box-shadow:0 0 12px rgba(78,203,138,.35)}
+.habit-streak-badge{display:flex;align-items:center;gap:3px;background:var(--bg3);border:1px solid var(--border);border-radius:20px;padding:3px 9px;font-family:var(--mono);font-size:10px;color:var(--text3);flex-shrink:0}
+.habit-streak-badge.hot{border-color:rgba(240,107,107,.3);background:rgba(240,107,107,.08);color:var(--pt)}
+.habit-streak-badge.fire{border-color:rgba(251,191,36,.3);background:rgba(251,191,36,.08);color:var(--eco)}
+.wg-summary-row{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px}
+.wg-stat-box{background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:12px;text-align:center;transition:border-color .2s}
+.wg-stat-box:hover{border-color:var(--border2)}
+.wg-stat-num{font-family:var(--head);font-size:22px;font-weight:700;margin-bottom:2px}
+.wg-stat-lbl{font-family:var(--mono);font-size:9px;letter-spacing:.8px;text-transform:uppercase;color:var(--text3)}
 /* NOTE */
 .note-card{background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:14px}
 .ntarea{width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:9px;color:var(--text);font-family:var(--mono);font-size:11px;line-height:1.7;resize:vertical;min-height:110px;outline:none;transition:border-color .15s}
@@ -622,9 +637,10 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
       <!-- WEEKLY TRACKER -->
       <div class="panel" id="panel-weekly">
         <div class="section-title">Weekly Tracker</div>
-        <div class="section-sub">Click cells to toggle — ✓ done · ✗ skipped · — N/A</div>
+        <div class="section-sub">Tap cells to cycle — ✓ done · ✗ skipped · — N/A · · unlogged</div>
+        <div class="wg-summary-row" id="wgSummaryRow"></div>
         <div style="overflow-x:auto"><div class="week-grid" id="weekGrid" style="margin-bottom:14px"></div></div>
-        <div class="widget"><div class="widget-title">Weekly Summary</div><div id="weeklySummary" style="font-size:12px;color:var(--text2);line-height:1.8"></div></div>
+        <div class="widget"><div class="widget-title">Summary</div><div id="weeklySummary" style="font-size:12px;color:var(--text2);line-height:1.8"></div></div>
       </div>
 
       <!-- PROGRESS -->
@@ -637,9 +653,10 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
       <!-- HABITS -->
       <div class="panel" id="panel-habits">
         <div class="section-title">Daily Habits</div>
-        <div class="section-sub">Resets at 1:00 AM daily</div>
+        <div class="section-sub">Resets at 1:00 AM · syncs across devices instantly</div>
+        <div id="habitsHeader"></div>
         <div class="habit-list" id="habitList"></div>
-        <div style="margin-top:12px">
+        <div style="margin-top:14px">
           <div class="inp-row">
             <input type="text" class="inp" id="newHabitInput" placeholder="Add a new habit..." onkeydown="if(event.key==='Enter')addHabit()">
             <button class="btn btn-accent" onclick="addHabit()">+ Add</button>
@@ -1178,9 +1195,10 @@ let _lastRemoteTs = 0;     // timestamp of last received remote save
 // ── localStorage (instant, always works offline) ────
 
 // Keys that are runtime-only — never synced to cloud or localStorage
+// Only truly runtime keys — things that cannot meaningfully sync between devices
+// habits, weekTracker, studyLog etc. MUST sync — do NOT add them here
 const RUNTIME_KEYS = new Set([
-  'timerSecs','timerMax','timerRunning','timerInterval',
-  'timerLabel','sessionsToday','sessionLog','retroMonth','currentPanel'
+  'timerSecs','timerMax','timerRunning','timerInterval','retroMonth','currentPanel'
 ]);
 
 function LS_local(){
@@ -1226,16 +1244,38 @@ async function LS(){
 }
 
 // ── Apply remote data if it is newer than local ──
-// Only syncs persistent data — never overwrites runtime timer state
 function _applyRemote(remote){
   const remoteTs = remote._savedAt||0;
   const localTs  = S._savedAt||0;
-  if(remoteTs <= localTs) return; // local is same age or newer — nothing to do
+  if(remoteTs <= localTs) return;
 
-  // Merge only persistent keys — skip runtime-only ones
+  // Save current runtime-only values to restore after merge
+  const keep = {};
+  RUNTIME_KEYS.forEach(k=>{ keep[k]=S[k]; });
+
+  // Save today's doneToday state for habits — remote may have yesterday's reset
+  const todayStr = new Date().toDateString();
+  const localHabits = (S.habits||[]).map(h=>({id:h.id, doneToday:h.doneToday}));
+
+  // Merge remote into state
   Object.keys(remote).forEach(k=>{
-    if(!RUNTIME_KEYS.has(k)) S[k] = remote[k];
+    if(!RUNTIME_KEYS.has(k)) S[k]=remote[k];
   });
+
+  // Restore runtime keys
+  Object.assign(S, keep);
+
+  // Restore doneToday for habits if remote and local are from the same day
+  // (remote might have been saved before user checked habits on this device)
+  if(remote.lastDay === todayStr && S.habits){
+    S.habits = S.habits.map(h=>{
+      const local = localHabits.find(lh=>lh.id===h.id);
+      // Keep doneToday=true if either device has it checked
+      if(local && local.doneToday) h.doneToday = true;
+      return h;
+    });
+  }
+
   S._savedAt = remoteTs;
   SS_local();
   _lastRemoteTs = remoteTs;
@@ -1800,26 +1840,84 @@ function saveRetroDay(){
 // WEEKLY TRACKER
 // ======================================================
 function buildWeekGrid(){
+  const todayDow=new Date().getDay(); // 0=Sun
   const grid=document.getElementById('weekGrid');grid.innerHTML='';
   const mkc=(cls,txt)=>{const e=document.createElement('div');e.className=cls;e.textContent=txt;return e;};
+
+  // Header row
   grid.appendChild(mkc('wg-head',''));
-  DAYS_SHORT.forEach(d=>grid.appendChild(mkc('wg-head',d)));
+  DAYS_SHORT.forEach((d,i)=>{
+    const el=mkc(`wg-head${i===todayDow?' today-col':''}`, d);
+    grid.appendChild(el);
+  });
+
   WEEK_ROWS.forEach(row=>{
     const lbl=document.createElement('div');lbl.className='wg-label';
-    lbl.innerHTML=`<span style="width:6px;height:6px;border-radius:50%;background:${row.color};display:inline-block;flex-shrink:0"></span>${row.label}`;
+    lbl.innerHTML=`<span style="width:7px;height:7px;border-radius:50%;background:${row.color};display:inline-block;flex-shrink:0"></span>${row.label}`;
     grid.appendChild(lbl);
     DAYS_SHORT.forEach((_,di)=>{
       const k=`wt_${row.key}_${di}`;const v=S.weekTracker[k]||0;
+      const isToday=di===todayDow;
       const c=document.createElement('div');
-      c.className=`wg-cell ${v===1?'done':v===2?'skip':v===3?'na':''}`;
+      c.className=`wg-cell${v===1?' done':v===2?' skip':v===3?' na':''}${isToday?' today-col':''}`;
       c.innerHTML=`<span class="ci">${v===1?'✓':v===2?'✗':v===3?'—':'·'}</span>`;
+      c.title=`${DAYS[di]} — ${row.label}: ${v===1?'Done':v===2?'Skipped':v===3?'N/A':'Not logged'}`;
       c.onclick=()=>{S.weekTracker[k]=(v+1)%4;SS();buildWeekGrid();};
       grid.appendChild(c);
     });
   });
-  let done=0,skip=0;Object.values(S.weekTracker).forEach(v=>{if(v===1)done++;if(v===2)skip++;});
-  const pct=Math.round(done/(WEEK_ROWS.length*7)*100);
-  document.getElementById('weeklySummary').innerHTML=`<strong style="color:var(--uni)">${done}</strong> blocks completed · <strong style="color:var(--pt)">${skip}</strong> skipped · <strong style="color:var(--accent)">${pct}%</strong> weekly rate ${pct>=70?'· <span style="color:var(--cds)">🔥 Excellent!</span>':pct>=50?'· <span style="color:var(--llm)">👍 Keep pushing</span>':'· <span style="color:var(--pt)">💪 You can do better</span>'}`;
+
+  // Summary stats
+  let done=0,skip=0,total=0;
+  WEEK_ROWS.forEach(row=>{
+    DAYS_SHORT.forEach((_,di)=>{
+      const v=S.weekTracker[`wt_${row.key}_${di}`]||0;
+      total++;
+      if(v===1)done++;
+      if(v===2)skip++;
+    });
+  });
+  const pct=total>0?Math.round(done/total*100):0;
+  const bestSubject=getBestWeekSubject();
+  const worstSubject=getWorstWeekSubject();
+
+  // Summary stats row
+  const summaryRow=document.getElementById('wgSummaryRow');
+  if(summaryRow){
+    summaryRow.innerHTML=`
+      <div class="wg-stat-box"><div class="wg-stat-num" style="color:var(--uni)">${done}</div><div class="wg-stat-lbl">Completed</div></div>
+      <div class="wg-stat-box"><div class="wg-stat-num" style="color:var(--pt)">${skip}</div><div class="wg-stat-lbl">Skipped</div></div>
+      <div class="wg-stat-box"><div class="wg-stat-num" style="color:var(--accent)">${pct}%</div><div class="wg-stat-lbl">Rate</div></div>
+      <div class="wg-stat-box"><div class="wg-stat-num" style="font-size:14px;color:var(--cds)">${bestSubject}</div><div class="wg-stat-lbl">Best subject</div></div>`;
+  }
+
+  document.getElementById('weeklySummary').innerHTML=`
+    <strong style="color:var(--uni)">${done}</strong> blocks completed &nbsp;·&nbsp;
+    <strong style="color:var(--pt)">${skip}</strong> skipped &nbsp;·&nbsp;
+    <strong style="color:var(--accent)">${pct}%</strong> weekly rate
+    ${pct>=70?'&nbsp;· <span style="color:var(--cds)">🔥 Excellent week!</span>':pct>=50?'&nbsp;· <span style="color:var(--llm)">👍 Keep pushing</span>':'&nbsp;· <span style="color:var(--pt)">💪 You can do better</span>'}`;
+}
+
+function getBestWeekSubject(){
+  const scores={};
+  WEEK_ROWS.forEach(row=>{
+    let done=0,total=0;
+    DAYS_SHORT.forEach((_,di)=>{const v=S.weekTracker[`wt_${row.key}_${di}`]||0;total++;if(v===1)done++;});
+    if(total>0)scores[row.label]=Math.round(done/total*100);
+  });
+  const best=Object.entries(scores).sort((a,b)=>b[1]-a[1])[0];
+  return best?best[0].replace(/[🏃➕🔬🏛️🌍💰🤖🎓]/u,'').trim():'—';
+}
+
+function getWorstWeekSubject(){
+  const scores={};
+  WEEK_ROWS.forEach(row=>{
+    let done=0,total=0;
+    DAYS_SHORT.forEach((_,di)=>{const v=S.weekTracker[`wt_${row.key}_${di}`]||0;total++;if(v===1)done++;});
+    if(total>0)scores[row.label]=Math.round(done/total*100);
+  });
+  const worst=Object.entries(scores).filter(e=>e[1]<100).sort((a,b)=>a[1]-b[1])[0];
+  return worst?worst[0]:'—';
 }
 
 // ======================================================
@@ -2141,9 +2239,32 @@ function addCard(){
 function buildHabits(){
   if(!S.habits)S.habits=HABITS_DEFAULT;
   const list=document.getElementById('habitList');list.innerHTML='';
+  const doneCount=S.habits.filter(h=>h.doneToday).length;
+  const total=S.habits.length;
+  // Header summary
+  const pct=total>0?Math.round(doneCount/total*100):0;
+  const headerEl=document.getElementById('habitsHeader');
+  if(headerEl){
+    headerEl.innerHTML=`
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap">
+        <div style="flex:1">
+          <div style="font-family:var(--head);font-size:13px;font-weight:600">${doneCount}/${total} habits done today</div>
+          <div style="height:5px;background:var(--bg4);border-radius:3px;margin-top:6px;overflow:hidden">
+            <div style="height:100%;width:${pct}%;background:${pct===100?'var(--uni)':pct>=50?'var(--accent)':'var(--cds)'};border-radius:3px;transition:width .4s"></div>
+          </div>
+        </div>
+        <div style="font-family:var(--head);font-size:28px;font-weight:700;color:${pct===100?'var(--uni)':pct>=50?'var(--accent)':'var(--text3)'}">${pct}%</div>
+      </div>`;
+  }
   S.habits.forEach((h,i)=>{
-    const item=document.createElement('div');item.className='habit-item';
-    item.innerHTML=`<div class="habit-check ${h.doneToday?'done':''}" onclick="toggleHabit(${i})">${h.doneToday?'✓':''}</div><span style="flex:1;font-size:12.5px">${h.icon} ${h.name}</span><span style="font-family:var(--mono);font-size:10px;color:var(--text3)">🔥 ${h.streak}d</span>`;
+    const streakClass=h.streak>=14?'fire':h.streak>=5?'hot':'';
+    const streakIcon=h.streak>=14?'🔥':h.streak>=5?'⚡':'🔥';
+    const item=document.createElement('div');
+    item.className=`habit-item ${h.doneToday?'done-item':''}`;
+    item.innerHTML=`
+      <div class="habit-check ${h.doneToday?'done':''}" onclick="toggleHabit(${i})">${h.doneToday?'✓':''}</div>
+      <span style="flex:1;font-size:13px;font-weight:${h.doneToday?'500':'400'};${h.doneToday?'color:var(--text)':'color:var(--text2)'}">${h.icon} ${h.name}</span>
+      <div class="habit-streak-badge ${streakClass}">${streakIcon} ${h.streak}d</div>`;
     list.appendChild(item);
   });
 }
