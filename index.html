@@ -2350,6 +2350,7 @@ let S={
   mockTests:[],errors:[],weeklyGoals:{},flashcards:null,
   examDate:null,theme:'dark',retroMonth:null,
   currentPanel:'today',
+  resources:[],syllabus:{},
 };
 
 // ══════════════════════════════════════════════════════
@@ -2612,23 +2613,38 @@ function setSyncStatus(s){
 // ======================================================
 function scheduleMidnightReset(){
   const now=new Date();
-  const next1am=new Date(now);
-  next1am.setHours(1,0,0,0);
-  if(now>=next1am)next1am.setDate(next1am.getDate()+1);
-  const ms=next1am-now;
+  const nextMidnight=new Date(now);
+  nextMidnight.setHours(0,0,0,0);
+  nextMidnight.setDate(nextMidnight.getDate()+1); // always next midnight
+  const ms=nextMidnight-now;
   setTimeout(()=>{
     doMidnightReset();
+    // Schedule subsequent resets every 24 hours
     setInterval(doMidnightReset,24*60*60*1000);
   },ms);
 }
 
 function doMidnightReset(){
   const todayStr=new Date().toDateString();
-  S.sessionLog=[];S.sessionsToday=0;S.guiltShownToday=false;
-  S.lastDay=todayStr;SS();
-  buildSchedule();buildSideStreak();
-  document.getElementById('sessionsToday').textContent='0';
-  notify('🌅 New day started — schedule refreshed!');
+  // Clear only today's runtime data — keep history, logs, progress
+  S.sessionLog=[];
+  S.sessionsToday=0;
+  S.guiltShownToday=false;
+  S.lastDay=todayStr;
+  // Clear today's completed blocks so fresh day starts clean
+  const prevKey=Object.keys(S.completed).find(k=>k.startsWith('day_'));
+  // Only clear the OLD day's completed map entry, not all history
+  const todayK=`day_${todayKey()}`;
+  // Remove all completed keys that are NOT today
+  Object.keys(S.completed).forEach(k=>{
+    if(k.startsWith('day_')&&k!==todayK) delete S.completed[k];
+  });
+  SS();
+  buildSchedule();
+  buildSideStreak();
+  const sessEl=document.getElementById('sessionsToday');
+  if(sessEl)sessEl.textContent='0';
+  notify('🌅 New day — schedule refreshed!');
 }
 
 // ======================================================
@@ -2637,8 +2653,11 @@ function doMidnightReset(){
 function checkDailyReset(){
   const todayStr=new Date().toDateString();
   if(S.lastDay!==todayStr){
-    S.sessionLog=[];S.sessionsToday=0;S.guiltShownToday=false;
-    S.lastDay=todayStr;SS();
+    S.sessionLog=[];
+    S.sessionsToday=0;
+    S.guiltShownToday=false;
+    S.lastDay=todayStr;
+    SS();
   }
 }
 
@@ -2996,6 +3015,7 @@ function saveRetroDay(){
 // PROGRESS — with input restoration
 // ======================================================
 function buildProgressPanel(){
+  if(!S.progress)S.progress={};
   const wrap=document.getElementById('progressPanels');wrap.innerHTML='';
   PROGRESS_DEFS.forEach(def=>{
     const card=document.createElement('div');card.className='prog-card';
@@ -3015,6 +3035,7 @@ function buildProgressPanel(){
 }
 
 function updateProg(id,pctId,barId,val,max){
+  if(!S.progress)S.progress={};
   const n=Math.min(max,Math.max(0,parseFloat(val)||0));
   const pct=max===100?n:Math.round(n/max*100);
   S.progress[id]=max===100?n:pct;
@@ -3128,14 +3149,20 @@ function addMock(){
   const gk=parseInt(document.getElementById('mockGK').value)||0;
   const time=parseInt(document.getElementById('mockTime').value)||120;
   if(!date)return notify('Please select a date');
+  if(!S.mockTests)S.mockTests=[];
   const total=maths+eng+gk;const maxTotal=320;
   S.mockTests.unshift({date,maths,eng,gk,total,time,pct:Math.round(total/maxTotal*100)});
+  document.getElementById('mockMaths').value='';
+  document.getElementById('mockEng').value='';
+  document.getElementById('mockGK').value='';
+  document.getElementById('mockTime').value='';
   SS();buildMockList();buildMockTrend();notify('Mock result saved!');
 }
 
 function buildMockList(){
+  if(!S.mockTests)S.mockTests=[];
   const el=document.getElementById('mockList');
-  if(!S.mockTests?.length){el.innerHTML='<div style="color:var(--text3);font-size:11px;text-align:center;padding:20px">No mock tests logged yet</div>';return;}
+  if(!S.mockTests.length){el.innerHTML='<div style="color:var(--text3);font-size:11px;text-align:center;padding:20px">No mock tests logged yet</div>';return;}
   el.innerHTML=S.mockTests.map((m,i)=>`
     <div class="mock-entry">
       <div class="mock-score" style="color:${m.pct>=60?'var(--uni)':m.pct>=40?'var(--cds)':'var(--pt)'}">${m.total}<span style="font-size:11px;font-weight:400;color:var(--text3)">/320</span></div>
@@ -3176,6 +3203,7 @@ function addError(){
   const topic=document.getElementById('errTopic').value.trim();
   const note=document.getElementById('errNote').value.trim();
   if(!topic)return notify('Enter a topic');
+  if(!S.errors)S.errors=[];
   const n=new Date();
   S.errors.unshift({sub,topic,note,date:n.toLocaleDateString('en-IN'),reviewed:false,id:Date.now()});
   document.getElementById('errTopic').value='';document.getElementById('errNote').value='';
@@ -3185,21 +3213,21 @@ function addError(){
 function buildErrors(){
   const filter=document.getElementById('errFilter').value;
   const list=document.getElementById('errorList');
+  if(!S.errors)S.errors=[];
   const filtered=S.errors.filter(e=>!filter||e.sub===filter);
   const subColors={maths:'var(--maths)',sci:'var(--sci)',polity:'var(--polity)',geo:'var(--geo)',eco:'var(--eco)',eng:'var(--cls)'};
-  // Stats
   const counts={};S.errors.forEach(e=>{counts[e.sub]=(counts[e.sub]||0)+1;});
   document.getElementById('errStats').innerHTML=Object.entries(counts).map(([s,c])=>`<span style="color:${subColors[s]||'var(--text2)'}">${s}:${c}</span>`).join(' · ');
   if(!filtered.length){list.innerHTML='<div style="color:var(--text3);font-size:11px;text-align:center;padding:20px">No errors logged yet</div>';return;}
-  list.innerHTML=filtered.map((e,i)=>`
+  list.innerHTML=filtered.map((e)=>`
     <div class="error-entry" style="border-left:3px solid ${subColors[e.sub]||'var(--border2)'}">
       <div class="error-topic">${e.topic}</div>
       ${e.note?`<div style="font-size:11px;color:var(--text2);margin:4px 0;line-height:1.5">${e.note}</div>`:''}
-      <div class="error-meta">${e.sub.toUpperCase()} · ${e.date} <span class="log-del" onclick="delError(${i})" style="opacity:1;cursor:pointer;float:right">×</span></div>
+      <div class="error-meta">${e.sub.toUpperCase()} · ${e.date} <span class="log-del" onclick="delError(${e.id})" style="opacity:1;cursor:pointer;float:right">×</span></div>
     </div>`).join('');
 }
 
-function delError(i){S.errors.splice(i,1);SS();buildErrors();}
+function delError(id){S.errors=S.errors.filter(e=>e.id!==id);SS();buildErrors();}
 
 // ======================================================
 // WEEKLY GOALS
@@ -3214,14 +3242,16 @@ function buildWeeklyGoals(){
   info.textContent=`Week of ${new Date(n.getFullYear(),n.getMonth(),n.getDate()-n.getDay()).toLocaleDateString('en-IN',{month:'short',day:'numeric'})} — Review on Sunday ${sunday.toLocaleDateString('en-IN',{month:'short',day:'numeric'})}. Goals set: ${goals.length}/3`;
   const catColors={maths:'var(--maths)',sci:'var(--sci)',polity:'var(--polity)',geo:'var(--geo)',eco:'var(--eco)',llm:'var(--llm)',uni:'var(--uni)',pt:'var(--pt)'};
   const gl=document.getElementById('weeklyGoalsList');
-  if(!goals.length){gl.innerHTML='<div style="color:var(--text3);font-size:11px;text-align:center;padding:16px">No goals set this week. Add up to 3.</div>';return;}
-  gl.innerHTML=goals.map((g,i)=>`
-    <div class="wg-goal-item">
-      <div class="wg-goal-check ${g.done?'done':''}" onclick="toggleGoal('${wk}',${i})">${g.done?'✓':''}</div>
-      <span class="wg-goal-text ${g.done?'':''}${g.done?' ':{textDecoration:'line-through'}}">${g.text}</span>
-      <span class="wg-goal-cat" style="color:${catColors[g.cat]||'var(--text3)'}">${g.cat}</span>
-      <span class="log-del" onclick="delGoal('${wk}',${i})" style="opacity:1;cursor:pointer">×</span>
-    </div>`).join('');
+  if(!goals.length){gl.innerHTML='<div style="color:var(--text3);font-size:11px;text-align:center;padding:16px">No goals set this week. Add up to 3.</div>';}
+  else{
+    gl.innerHTML=goals.map((g,i)=>`
+      <div class="wg-goal-item">
+        <div class="wg-goal-check ${g.done?'done':''}" data-wk="${wk}" data-i="${i}" onclick="_toggleGoalClick(this)">${g.done?'✓':''}</div>
+        <span class="wg-goal-text" style="${g.done?'text-decoration:line-through;opacity:.5':''}">  ${g.text}</span>
+        <span class="wg-goal-cat" style="color:${catColors[g.cat]||'var(--text3)'}">${g.cat}</span>
+        <span class="log-del" data-wk="${wk}" data-i="${i}" onclick="_delGoalClick(this)" style="opacity:1;cursor:pointer">×</span>
+      </div>`).join('');
+  }
 
   // Archive: last 4 weeks
   const archive=document.getElementById('goalsArchive');
@@ -3233,19 +3263,21 @@ function buildWeeklyGoals(){
   }).join('');
 }
 
+function _toggleGoalClick(el){const wk=el.dataset.wk;const i=parseInt(el.dataset.i);toggleGoal(wk,i);}
+function _delGoalClick(el){const wk=el.dataset.wk;const i=parseInt(el.dataset.i);delGoal(wk,i);}
+function toggleGoal(wk,i){if(!S.weeklyGoals[wk])return;S.weeklyGoals[wk][i].done=!S.weeklyGoals[wk][i].done;SS();buildWeeklyGoals();}
+function delGoal(wk,i){if(!S.weeklyGoals[wk])return;S.weeklyGoals[wk].splice(i,1);SS();buildWeeklyGoals();}
+
 function addGoal(){
   const wk=weekKey();if(!S.weeklyGoals[wk])S.weeklyGoals[wk]=[];
   if(S.weeklyGoals[wk].length>=3)return notify('Max 3 goals per week. Review completed ones first.');
   const text=document.getElementById('goalInput').value.trim();
   const cat=document.getElementById('goalCatSel').value;
-  if(!text)return;
+  if(!text)return notify('Enter a goal description');
   S.weeklyGoals[wk].push({text,cat,done:false});
   document.getElementById('goalInput').value='';
   SS();buildWeeklyGoals();notify('Goal added!');
 }
-
-function toggleGoal(wk,i){S.weeklyGoals[wk][i].done=!S.weeklyGoals[wk][i].done;SS();buildWeeklyGoals();}
-function delGoal(wk,i){S.weeklyGoals[wk].splice(i,1);SS();buildWeeklyGoals();}
 
 // ======================================================
 // FLASHCARDS
@@ -3326,9 +3358,20 @@ function delLog(i){S.studyLog.splice(i,1);SS();buildLog();}
 // ======================================================
 // NOTES
 // ======================================================
-function saveNotes(){['sci','maths','polity','geo','eco','llm'].forEach(k=>{const e=document.getElementById('note_'+k);if(e)S.notes[k]=e.value;});SS();}
-function saveNote(){const e=document.getElementById('todayNote');if(e)S.notes.today=e.value;SS();}
-function loadNotes(){['sci','maths','polity','geo','eco','llm'].forEach(k=>{const e=document.getElementById('note_'+k);if(e&&S.notes?.[k])e.value=S.notes[k];});const t=document.getElementById('todayNote');if(t&&S.notes?.today)t.value=S.notes.today;}
+function saveNotes(){
+  if(!S.notes)S.notes={};
+  ['sci','maths','polity','geo','eco','llm'].forEach(k=>{const e=document.getElementById('note_'+k);if(e)S.notes[k]=e.value;});
+  SS();
+}
+function saveNote(){
+  if(!S.notes)S.notes={};
+  const e=document.getElementById('todayNote');if(e)S.notes.today=e.value;SS();
+}
+function loadNotes(){
+  if(!S.notes)S.notes={};
+  ['sci','maths','polity','geo','eco','llm'].forEach(k=>{const e=document.getElementById('note_'+k);if(e)e.value=S.notes[k]||'';});
+  const t=document.getElementById('todayNote');if(t)t.value=S.notes.today||'';
+}
 
 // ======================================================
 // SUGGESTIONS
@@ -3871,7 +3914,7 @@ function addResource() {
   if (!title) return notify('Enter a title');
   if (!url)   return notify('Enter a YouTube URL');
 
-  if (!S.resources) S.resources = [];
+  if (!S.resources || !Array.isArray(S.resources)) S.resources = [];
   S.resources.unshift({ id: Date.now(), title, url, subject, type, notes, addedOn: new Date().toLocaleDateString('en-IN') });
   document.getElementById('resTitle').value = '';
   document.getElementById('resUrl').value = '';
@@ -3902,7 +3945,7 @@ function buildResourceFilters() {
 function setResFilter(f) { resFilter = f; buildResourceFilters(); buildResourceList(); }
 
 function buildResourceList() {
-  if (!S.resources) S.resources = [];
+  if (!S.resources || !Array.isArray(S.resources)) S.resources = [];
   buildResourceFilters();
   const list = document.getElementById('resList');
   if (!list) return;
