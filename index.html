@@ -1337,6 +1337,27 @@ select.inp option { background: var(--bg3); }
 .day-subject-badges { display: flex; gap: 5px; flex-wrap: wrap; margin-bottom: 12px; }
 .dsb { padding: 3px 9px; border-radius: 20px; font-size: 10px; font-weight: 500; font-family: var(--mono); }
 
+/* Custom tasks */
+.custom-tasks-section{margin-top:14px}
+.custom-tasks-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+.custom-tasks-label{font-family:var(--mono);font-size:9px;letter-spacing:1.4px;text-transform:uppercase;color:var(--text3)}
+.custom-task-item{display:flex;align-items:center;gap:8px;padding:8px 11px;background:var(--glass);border:1px solid var(--border);border-radius:9px;margin-bottom:4px;transition:all .15s;position:relative;overflow:hidden}
+.custom-task-item::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--accent);border-radius:3px 0 0 3px}
+.custom-task-item.ct-done{opacity:.4}
+.custom-task-item.ct-done .ct-name{text-decoration:line-through}
+.ct-check{width:18px;height:18px;border-radius:50%;border:1.5px solid var(--border2);display:flex;align-items:center;justify-content:center;font-size:10px;cursor:pointer;flex-shrink:0;transition:all .15s;background:var(--glass2)}
+.ct-check:hover{border-color:var(--green)}
+.ct-check.done{background:var(--green);border-color:var(--green);color:#fff}
+.ct-name{flex:1;font-size:12px;font-weight:400}
+.ct-del{font-size:14px;color:var(--text3);cursor:pointer;opacity:0;transition:opacity .15s;padding:0 4px;flex-shrink:0}
+.custom-task-item:hover .ct-del{opacity:1}
+.ct-del:hover{color:var(--red)}
+.add-custom-task-row{display:flex;gap:6px;margin-top:8px}
+.ct-inp{flex:1;padding:7px 10px;background:var(--glass2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:var(--body);font-size:12px;outline:none;transition:border-color .15s}
+.ct-inp:focus{border-color:var(--accent)}
+.ct-add-btn{padding:7px 14px;border-radius:8px;font-size:11.5px;font-weight:500;cursor:pointer;border:1px solid var(--accent);background:rgba(99,102,241,.12);color:var(--accent);transition:all .15s;font-family:var(--body);white-space:nowrap}
+.ct-add-btn:hover{background:var(--accent);color:#fff}
+
 /* ═══════════════════════════════════════════════════
    NOTIFICATION
 ═══════════════════════════════════════════════════ */
@@ -1699,7 +1720,21 @@ select.inp option { background: var(--bg3); }
         </div>
 
         <div class="today-grid">
-          <div><div class="schedule-list" id="scheduleList"></div></div>
+          <div>
+            <div class="schedule-list" id="scheduleList"></div>
+            <!-- Custom Tasks -->
+            <div class="custom-tasks-section">
+              <div class="custom-tasks-header">
+                <span class="custom-tasks-label">✦ Extra Tasks Today</span>
+              </div>
+              <div id="customTasksList"></div>
+              <div class="add-custom-task-row">
+                <input class="ct-inp" id="ctInput" type="text" placeholder="Add a custom task for today..." maxlength="120"
+                  onkeydown="if(event.key==='Enter')addCustomTask()">
+                <button class="ct-add-btn" onclick="addCustomTask()">+ Add</button>
+              </div>
+            </div>
+          </div>
           <div class="side-col">
             <div class="widget">
               <div class="widget-title">Quick Focus</div>
@@ -2351,6 +2386,7 @@ let S={
   examDate:null,theme:'dark',retroMonth:null,
   currentPanel:'today',
   resources:[],syllabus:{},
+  customTasks:{},
 };
 
 // ══════════════════════════════════════════════════════
@@ -2450,40 +2486,52 @@ function _applyRemote(remote){
   const keep = {};
   RUNTIME_KEYS.forEach(k=>{ keep[k]=S[k]; });
 
-  // Smart merge: never replace local non-empty data with remote empty data.
-  // This prevents a stale Supabase row from wiping freshly added notes/resources.
   Object.keys(remote).forEach(k=>{
     if(RUNTIME_KEYS.has(k)) return;
     const rv = remote[k];
     const lv = S[k];
-    // For arrays: keep whichever has more items (never downgrade to empty)
+
+    // Arrays: keep whichever has more items — never replace data with empty array
     if(Array.isArray(rv) && Array.isArray(lv)){
       S[k] = rv.length >= lv.length ? rv : lv;
+      return;
     }
-    // For plain objects (notes, progress, weeklyGoals, syllabus):
-    // merge keys — local wins if both have the key and local is non-empty string
-    else if(rv && typeof rv === 'object' && !Array.isArray(rv) &&
-            lv && typeof lv === 'object' && !Array.isArray(lv)){
-      const merged = {...rv};
+
+    // Plain objects: smart merge key-by-key
+    if(rv && typeof rv==='object' && !Array.isArray(rv) &&
+       lv && typeof lv==='object' && !Array.isArray(lv)){
+      // Start with remote as base, then layer in local where local is "more defined"
+      const merged = Object.assign({}, rv);
       Object.keys(lv).forEach(sk=>{
-        // Keep local value if it's a non-empty string/number and remote is empty
-        if(lv[sk] !== null && lv[sk] !== undefined){
-          const remoteVal = rv[sk];
-          const localVal  = lv[sk];
-          if(typeof localVal === 'string' && localVal.length > 0 &&
-             (!remoteVal || remoteVal.length === 0)){
-            merged[sk] = localVal; // local note wins over empty remote
-          } else {
-            merged[sk] = remoteVal !== undefined ? remoteVal : localVal;
-          }
+        const rval = rv[sk];
+        const lval = lv[sk];
+        if(lval === undefined || lval === null) return; // remote wins
+        if(rval === undefined || rval === null){ merged[sk]=lval; return; } // local wins
+
+        // For completed (booleans): true beats false — if either device checked it, keep checked
+        if(typeof lval==='boolean' && typeof rval==='boolean'){
+          merged[sk] = lval || rval; // true wins
+          return;
         }
+        // For strings (notes): keep whichever is longer/non-empty
+        if(typeof lval==='string' && typeof rval==='string'){
+          merged[sk] = lval.length >= rval.length ? lval : rval;
+          return;
+        }
+        // For numbers (progress): keep higher value
+        if(typeof lval==='number' && typeof rval==='number'){
+          merged[sk] = Math.max(lval, rval);
+          return;
+        }
+        // Default: remote wins (it's newer)
+        merged[sk] = rval;
       });
       S[k] = merged;
+      return;
     }
-    // For everything else (numbers, strings, booleans, null): remote wins
-    else {
-      S[k] = rv;
-    }
+
+    // Everything else: remote wins (it's confirmed newer)
+    S[k] = rv;
   });
 
   // Restore runtime keys
@@ -2790,7 +2838,7 @@ function buildSchedule(){
 
   const list=document.getElementById('scheduleList');list.innerHTML='';
   const key=`day_${todayKey()}`;
-  if(!S.completed[key])S.completed[key]={};
+  if(!S.completed) S.completed={};
 
   const nowMins=now.getHours()*60+now.getMinutes();
   let completedCount=0,cdsSubs=new Set(),goalMap={};
@@ -2798,7 +2846,7 @@ function buildSchedule(){
 
   blocks.forEach((b,i)=>{
     const id=`${key}_${i}`;
-    const done=!!S.completed[id];
+    const done=S.completed[id]===true;
     if(done)completedCount++;
     if(['maths','sci','polity','geo','eco'].includes(b.cat))cdsSubs.add(b.cat);
     if(!goalMap[b.cat])goalMap[b.cat]={total:0,done:0};
@@ -2824,7 +2872,7 @@ function buildSchedule(){
 
     const item=document.createElement('div');
     item.className=`block-item cat-${b.cat} ${done?'completed':''}`;
-    item.onclick=()=>toggleBlock(id,i);
+    item.onclick=()=>toggleBlock(id);
     item.innerHTML=`
       <div class="block-dur-bar" style="width:${durPct}%"></div>
       <span class="block-time">${b.time}</span>
@@ -2863,6 +2911,7 @@ function buildSchedule(){
 
   S.dailyHistory[todayKey()]={pct,date:new Date().toISOString(),subjects:buildSubjectSnapshot()};
   SS();buildSideStreak();
+  buildCustomTasks();
 }
 
 function buildSubjectSnapshot(){
@@ -2876,15 +2925,69 @@ function buildSubjectSnapshot(){
   return snap;
 }
 
-function toggleBlock(id,i){
-  S.completed[id]=!S.completed[id];
-  SS();buildSchedule();
-  notify(S.completed[id]?'✓ Block done!':'Block unmarked');
+function toggleBlock(id){
+  // Toggle: undefined/false → true, true → false (remove key to keep object clean)
+  if(S.completed[id]){
+    delete S.completed[id]; // unmark: remove key entirely
+  } else {
+    S.completed[id] = true;  // mark done
+  }
+  SS();
+  buildSchedule();
 }
 
 // ======================================================
 // STREAK
 // ======================================================
+// ======================================================
+// CUSTOM TASKS (ad-hoc tasks for today)
+// ======================================================
+function _customKey(){ return `ct_${todayKey()}`; }
+
+function addCustomTask(){
+  const inp = document.getElementById('ctInput');
+  if(!inp) return;
+  const text = inp.value.trim();
+  if(!text) return;
+  if(!S.customTasks) S.customTasks={};
+  const key = _customKey();
+  if(!S.customTasks[key]) S.customTasks[key]=[];
+  S.customTasks[key].push({ id: Date.now(), text, done: false });
+  inp.value = '';
+  SS();
+  buildCustomTasks();
+}
+
+function toggleCustomTask(id){
+  if(!S.customTasks) return;
+  const key = _customKey();
+  const tasks = S.customTasks[key]||[];
+  const t = tasks.find(t=>t.id===id);
+  if(t){ t.done=!t.done; SS(); buildCustomTasks(); }
+}
+
+function delCustomTask(id){
+  if(!S.customTasks) return;
+  const key = _customKey();
+  S.customTasks[key] = (S.customTasks[key]||[]).filter(t=>t.id!==id);
+  SS(); buildCustomTasks();
+}
+
+function buildCustomTasks(){
+  if(!S.customTasks) S.customTasks={};
+  const key = _customKey();
+  const tasks = S.customTasks[key]||[];
+  const el = document.getElementById('customTasksList');
+  if(!el) return;
+  if(!tasks.length){ el.innerHTML=''; return; }
+  el.innerHTML = tasks.map(t=>`
+    <div class="custom-task-item ${t.done?'ct-done':''}">
+      <div class="ct-check ${t.done?'done':''}" onclick="toggleCustomTask(${t.id})">${t.done?'✓':''}</div>
+      <span class="ct-name">${t.text}</span>
+      <span class="ct-del" onclick="delCustomTask(${t.id})" title="Delete">×</span>
+    </div>`).join('');
+}
+
 function buildSideStreak(){
   let current=0;
   const d=new Date();
