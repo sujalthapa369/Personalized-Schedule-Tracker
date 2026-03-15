@@ -2420,9 +2420,10 @@ function SS(){
   _saveTimer=setTimeout(()=>_cloudSave(),1500);
 }
 
-// ── LS: load local first, then pull from cloud and merge ──
+// ── LS: pull from cloud and smart-merge ──
 async function LS(){
-  LS_local();
+  // LS_local() was already called in bootApp — don't call again here
+  // as it would re-read potentially stale localStorage
   if(!_supa||!_userId){setSyncStatus('offline');return;}
   setSyncStatus('loading');
   try{
@@ -2445,19 +2446,48 @@ function _applyRemote(remote){
   const localTs  = S._savedAt||0;
   if(remoteTs <= localTs) return;
 
-  // Save current runtime-only values to restore after merge
+  // Save runtime-only values to restore after merge
   const keep = {};
   RUNTIME_KEYS.forEach(k=>{ keep[k]=S[k]; });
 
-
-  // Merge remote into state
+  // Smart merge: never replace local non-empty data with remote empty data.
+  // This prevents a stale Supabase row from wiping freshly added notes/resources.
   Object.keys(remote).forEach(k=>{
-    if(!RUNTIME_KEYS.has(k)) S[k]=remote[k];
+    if(RUNTIME_KEYS.has(k)) return;
+    const rv = remote[k];
+    const lv = S[k];
+    // For arrays: keep whichever has more items (never downgrade to empty)
+    if(Array.isArray(rv) && Array.isArray(lv)){
+      S[k] = rv.length >= lv.length ? rv : lv;
+    }
+    // For plain objects (notes, progress, weeklyGoals, syllabus):
+    // merge keys — local wins if both have the key and local is non-empty string
+    else if(rv && typeof rv === 'object' && !Array.isArray(rv) &&
+            lv && typeof lv === 'object' && !Array.isArray(lv)){
+      const merged = {...rv};
+      Object.keys(lv).forEach(sk=>{
+        // Keep local value if it's a non-empty string/number and remote is empty
+        if(lv[sk] !== null && lv[sk] !== undefined){
+          const remoteVal = rv[sk];
+          const localVal  = lv[sk];
+          if(typeof localVal === 'string' && localVal.length > 0 &&
+             (!remoteVal || remoteVal.length === 0)){
+            merged[sk] = localVal; // local note wins over empty remote
+          } else {
+            merged[sk] = remoteVal !== undefined ? remoteVal : localVal;
+          }
+        }
+      });
+      S[k] = merged;
+    }
+    // For everything else (numbers, strings, booleans, null): remote wins
+    else {
+      S[k] = rv;
+    }
   });
 
   // Restore runtime keys
   Object.assign(S, keep);
-
 
   S._savedAt = remoteTs;
   SS_local();
@@ -2525,10 +2555,10 @@ function _rebuildUI(){
 // ── Save to Supabase ──
 async function _cloudSave(){
   if(!_supa||!_userId)return;
-  S._savedAt=Date.now();
-  SS_local();
   setSyncStatus('saving');
   try{
+    const ts = Date.now();
+    S._savedAt = ts;
     const payload = _persistable(); // strip runtime keys before cloud save
     const{error}=await _supa.from('studyos_data')
       .upsert(
@@ -2536,10 +2566,14 @@ async function _cloudSave(){
         {onConflict:'user_id'}
       );
     if(error)throw error;
+    // Only save timestamp AFTER confirmed save
+    SS_local();
     setSyncStatus('synced');
     _offline=false;
   }catch(e){
     console.warn('Cloud save failed:',e.message);
+    // Reset _savedAt so next sync attempt re-saves
+    S._savedAt = S._savedAt || 0;
     setSyncStatus('offline');
     _offline=true;
   }
