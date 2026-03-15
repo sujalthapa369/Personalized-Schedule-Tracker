@@ -634,15 +634,6 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
         </div>
       </div>
 
-      <!-- WEEKLY TRACKER -->
-      <div class="panel" id="panel-weekly">
-        <div class="section-title">Weekly Tracker</div>
-        <div class="section-sub">Tap cells to cycle — ✓ done · ✗ skipped · — N/A · · unlogged</div>
-        <div class="wg-summary-row" id="wgSummaryRow"></div>
-        <div style="overflow-x:auto"><div class="week-grid" id="weekGrid" style="margin-bottom:14px"></div></div>
-        <div class="widget"><div class="widget-title">Summary</div><div id="weeklySummary" style="font-size:12px;color:var(--text2);line-height:1.8"></div></div>
-      </div>
-
       <!-- PROGRESS -->
       <div class="panel" id="panel-progress">
         <div class="section-title">Progress Tracker</div>
@@ -650,19 +641,6 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
         <div class="progress-panels" id="progressPanels"></div>
       </div>
 
-      <!-- HABITS -->
-      <div class="panel" id="panel-habits">
-        <div class="section-title">Daily Habits</div>
-        <div class="section-sub">Resets at 1:00 AM · syncs across devices instantly</div>
-        <div id="habitsHeader"></div>
-        <div class="habit-list" id="habitList"></div>
-        <div style="margin-top:14px">
-          <div class="inp-row">
-            <input type="text" class="inp" id="newHabitInput" placeholder="Add a new habit..." onkeydown="if(event.key==='Enter')addHabit()">
-            <button class="btn btn-accent" onclick="addHabit()">+ Add</button>
-          </div>
-        </div>
-      </div>
 
       <!-- TIMER -->
       <div class="panel" id="panel-timer">
