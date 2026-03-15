@@ -2378,7 +2378,16 @@ const RUNTIME_KEYS = new Set([
 ]);
 
 function LS_local(){
-  try{const d=localStorage.getItem('studyos_v3');if(d){const p=JSON.parse(d);S={...S,...p};}}catch(e){}
+  try{
+    const d=localStorage.getItem('studyos_v3');
+    if(d){
+      const p=JSON.parse(d);
+      // Deep-merge top-level keys — don't let empty arrays/objects wipe saved data
+      Object.keys(p).forEach(k=>{
+        if(p[k]!==null && p[k]!==undefined) S[k]=p[k];
+      });
+    }
+  }catch(e){console.warn('LS_local failed:',e);}
 }
 
 // Strip runtime-only keys before any persistence — timer state must never sync
@@ -2389,7 +2398,18 @@ function _persistable(){
 }
 
 function SS_local(){
-  try{localStorage.setItem('studyos_v3',JSON.stringify(_persistable()));}catch(e){}
+  try{
+    const data = JSON.stringify(_persistable());
+    localStorage.setItem('studyos_v3', data);
+    // Backup to sessionStorage as secondary store
+    try{ sessionStorage.setItem('studyos_v3_bk', data); }catch(_){}
+  }catch(e){
+    console.error('SS_local failed (localStorage error):', e);
+    // Try sessionStorage as fallback if localStorage is full/blocked
+    try{
+      sessionStorage.setItem('studyos_v3', JSON.stringify(_persistable()));
+    }catch(e2){console.error('SS_local fallback also failed:',e2);}
+  }
 }
 
 // ── SS: save locally immediately, push to cloud after 1.5s ──
@@ -3385,23 +3405,36 @@ function delLog(i){S.studyLog.splice(i,1);SS();buildLog();}
 // ======================================================
 function saveNotes(){
   if(!S.notes)S.notes={};
-  ['sci','maths','polity','geo','eco','llm'].forEach(k=>{const e=document.getElementById('note_'+k);if(e)S.notes[k]=e.value;});
-  SS();
+  ['sci','maths','polity','geo','eco','llm'].forEach(k=>{
+    const e=document.getElementById('note_'+k);
+    if(e) S.notes[k]=e.value;
+  });
+  // Save immediately to localStorage on every keystroke
+  SS_local();
+  // Debounce cloud save
+  clearTimeout(_saveTimer);
+  if(_supa&&_userId) _saveTimer=setTimeout(()=>_cloudSave(),2000);
 }
 function saveNote(){
   if(!S.notes)S.notes={};
-  const e=document.getElementById('todayNote');if(e)S.notes.today=e.value;SS();
+  const e=document.getElementById('todayNote');
+  if(!e)return;
+  S.notes.today=e.value;
+  SS_local();
+  clearTimeout(_saveTimer);
+  if(_supa&&_userId) _saveTimer=setTimeout(()=>_cloudSave(),2000);
 }
 function loadNotes(){
   if(!S.notes)S.notes={};
   ['sci','maths','polity','geo','eco','llm'].forEach(k=>{
     const e=document.getElementById('note_'+k);
     if(!e)return;
-    // Only overwrite if this specific textarea is not focused
-    if(document.activeElement!==e) e.value=S.notes[k]||'';
+    // Don't overwrite if user is ACTIVELY typing in this exact field
+    const isFocused = (document.activeElement===e && e.selectionStart!==e.selectionEnd || document.activeElement===e);
+    if(!isFocused) e.value = S.notes[k]||'';
   });
   const t=document.getElementById('todayNote');
-  if(t&&document.activeElement!==t) t.value=S.notes.today||'';
+  if(t && document.activeElement!==t) t.value=S.notes.today||'';
 }
 
 // ======================================================
@@ -3438,6 +3471,9 @@ function toggleTheme(){
 // PANEL SWITCHING
 // ======================================================
 function SP(id){
+  // Blur any focused input before switching panels — ensures loadNotes etc work cleanly
+  if(document.activeElement && document.activeElement.blur) document.activeElement.blur();
+
   document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
   document.querySelectorAll('.nav-item,.mn-item').forEach(n=>n.classList.remove('active'));
   document.getElementById('panel-'+id).classList.add('active');
@@ -3937,20 +3973,38 @@ const TYPE_ICONS = { playlist:'📋', video:'🎬', channel:'📺' };
 let resFilter = '';
 
 function addResource() {
-  const title = document.getElementById('resTitle').value.trim();
-  const url   = document.getElementById('resUrl').value.trim();
+  const titleEl = document.getElementById('resTitle');
+  const urlEl   = document.getElementById('resUrl');
+  const notesEl = document.getElementById('resNotes');
+  const title   = titleEl ? titleEl.value.trim() : '';
+  const url     = urlEl   ? urlEl.value.trim()   : '';
   const subject = document.getElementById('resSubject').value;
-  const type  = document.getElementById('resType').value;
-  const notes = document.getElementById('resNotes').value.trim();
+  const type    = document.getElementById('resType').value;
+  const notes   = notesEl ? notesEl.value.trim() : '';
+
   if (!title) return notify('Enter a title');
   if (!url)   return notify('Enter a YouTube URL');
 
   if (!S.resources || !Array.isArray(S.resources)) S.resources = [];
-  S.resources.unshift({ id: Date.now(), title, url, subject, type, notes, addedOn: new Date().toLocaleDateString('en-IN') });
-  document.getElementById('resTitle').value = '';
-  document.getElementById('resUrl').value = '';
-  document.getElementById('resNotes').value = '';
-  SS(); buildResourceList(); notify('Resource saved!');
+
+  const newResource = {
+    id: Date.now(),
+    title, url, subject, type, notes,
+    addedOn: new Date().toLocaleDateString('en-IN')
+  };
+  S.resources.unshift(newResource);
+
+  // Save immediately — don't wait for debounce
+  SS_local();
+  if(_supa && _userId){ clearTimeout(_saveTimer); _cloudSave(); }
+
+  // Clear form
+  if(titleEl) titleEl.value = '';
+  if(urlEl)   urlEl.value   = '';
+  if(notesEl) notesEl.value = '';
+
+  buildResourceList();
+  notify('Resource saved!');
 }
 
 function getYTThumbnail(url) {
@@ -4004,7 +4058,7 @@ function buildResourceList() {
       ${sub.icon} ${sub.label} <span style="font-family:var(--mono);font-size:10px;color:var(--text3);font-weight:400">${items.length} saved</span>
     </div>`;
     items.forEach((r, localIdx) => {
-      const globalIdx = S.resources.indexOf(r);
+      const globalIdx = r.id;
       const thumb = getYTThumbnail(r.url);
       const card = document.createElement('div');
       card.className = 'res-card';
@@ -4031,9 +4085,11 @@ function buildResourceList() {
   });
 }
 
-function delResource(i) {
+function delResource(id) {
   if (!confirm('Remove this resource?')) return;
-  S.resources.splice(i, 1); SS(); buildResourceList(); notify('Removed.');
+  if(!S.resources)S.resources=[];
+  S.resources = S.resources.filter(r => r.id !== id);
+  SS(); buildResourceList(); notify('Removed.');
 }
 
 
