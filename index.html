@@ -207,19 +207,7 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
 .hm-label{color:var(--text2);display:flex;align-items:center;gap:4px;padding:3px 0}
 .hm-cell{border-radius:4px;height:22px;display:flex;align-items:center;justify-content:center;cursor:default;font-size:9px;transition:opacity .2s}
 .hm-cell:hover{opacity:.8}
-/* WEEKLY TRACKER */
-.week-grid{display:grid;grid-template-columns:88px repeat(7,1fr);gap:2px;border-radius:14px;overflow:hidden;min-width:520px;background:var(--bg3);padding:3px}
-.wg-head{background:transparent;padding:8px 4px;font-family:var(--mono);font-size:9px;letter-spacing:1px;text-transform:uppercase;color:var(--text3);text-align:center}
-.wg-head.today-col{color:var(--accent);font-weight:600}
-.wg-label{background:var(--bg2);padding:8px 10px;font-size:10.5px;font-weight:500;color:var(--text2);display:flex;align-items:center;gap:6px;border-radius:8px}
-.wg-cell{background:var(--bg2);padding:6px 4px;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all .15s;min-height:36px;border-radius:8px;position:relative}
-.wg-cell:hover{background:var(--bg3);transform:scale(1.08);z-index:1}
-.wg-cell.done{background:rgba(78,203,138,.15);box-shadow:inset 0 0 0 1px rgba(78,203,138,.2)} .wg-cell.done .ci{color:var(--uni);font-size:15px}
-.wg-cell.skip{background:rgba(240,107,107,.1);box-shadow:inset 0 0 0 1px rgba(240,107,107,.15)} .wg-cell.skip .ci{color:var(--pt)}
-.wg-cell.na{background:var(--bg4)} .wg-cell.na .ci{color:var(--text3);opacity:.5}
-.wg-cell.today-col{box-shadow:inset 0 0 0 1px rgba(108,139,239,.2);background:rgba(108,139,239,.06)}
-.wg-cell.today-col.done{background:rgba(78,203,138,.2);box-shadow:inset 0 0 0 1.5px rgba(78,203,138,.4)}
-.ci{font-size:13px;color:var(--text3)}
+
 /* PROGRESS */
 .progress-panels{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 .prog-card{background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:16px}
@@ -470,11 +458,8 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
         <div class="nav-label">Main</div>
         <div class="nav-item active" onclick="SP('today')"><span class="nav-icon">📅</span>Today's Schedule</div>
         <div class="nav-item" onclick="SP('streak')"><span class="nav-icon">📈</span>Streak & Activity</div>
-        <div class="nav-item" onclick="SP('weekly')"><span class="nav-icon">🗓</span>Weekly Tracker</div>
         <div class="nav-item" onclick="SP('retrocal')"><span class="nav-icon">📆</span>Retro Calendar</div>
-        <div class="nav-item" onclick="SP('progress')"><span class="nav-icon">📊</span>Progress</div>
-        <div class="nav-item" onclick="SP('habits')"><span class="nav-icon">🔥</span>Daily Habits</div>
-      </div>
+        <div class="nav-item" onclick="SP('progress')"><span class="nav-icon">📊</span>Progress</div>      </div>
       <div class="nav-section">
         <div class="nav-label">Study</div>
         <div class="nav-item" onclick="SP('timer')"><span class="nav-icon">⏱</span>Focus Timer</div>
@@ -1814,50 +1799,6 @@ function saveRetroDay(){
   notify(`Day updated: ${pct}% completion saved.`);
 }
 
-// ======================================================
-// WEEKLY TRACKER
-// ======================================================
-function buildWeekGrid(){
-  const todayDow=new Date().getDay(); // 0=Sun
-  const grid=document.getElementById('weekGrid');grid.innerHTML='';
-  const mkc=(cls,txt)=>{const e=document.createElement('div');e.className=cls;e.textContent=txt;return e;};
-
-  // Header row
-  grid.appendChild(mkc('wg-head',''));
-  DAYS_SHORT.forEach((d,i)=>{
-    const el=mkc(`wg-head${i===todayDow?' today-col':''}`, d);
-    grid.appendChild(el);
-  });
-
-  WEEK_ROWS.forEach(row=>{
-    const lbl=document.createElement('div');lbl.className='wg-label';
-    lbl.innerHTML=`<span style="width:7px;height:7px;border-radius:50%;background:${row.color};display:inline-block;flex-shrink:0"></span>${row.label}`;
-    grid.appendChild(lbl);
-    DAYS_SHORT.forEach((_,di)=>{
-      const k=`wt_${row.key}_${di}`;const v=S.weekTracker[k]||0;
-      const isToday=di===todayDow;
-      const c=document.createElement('div');
-      c.className=`wg-cell${v===1?' done':v===2?' skip':v===3?' na':''}${isToday?' today-col':''}`;
-      c.innerHTML=`<span class="ci">${v===1?'✓':v===2?'✗':v===3?'—':'·'}</span>`;
-      c.title=`${DAYS[di]} — ${row.label}: ${v===1?'Done':v===2?'Skipped':v===3?'N/A':'Not logged'}`;
-      c.onclick=()=>{S.weekTracker[k]=(v+1)%4;SS();buildWeekGrid();};
-      grid.appendChild(c);
-    });
-  });
-
-  // Summary stats
-  let done=0,skip=0,total=0;
-  WEEK_ROWS.forEach(row=>{
-    DAYS_SHORT.forEach((_,di)=>{
-      const v=S.weekTracker[`wt_${row.key}_${di}`]||0;
-      total++;
-      if(v===1)done++;
-      if(v===2)skip++;
-    });
-  });
-  const pct=total>0?Math.round(done/total*100):0;
-  const bestSubject=getBestWeekSubject();
-  const worstSubject=getWorstWeekSubject();
 
   // Summary stats row
   const summaryRow=document.getElementById('wgSummaryRow');
@@ -2211,49 +2152,7 @@ function addCard(){
   SS();buildFlashcards();notify('Card added!');
 }
 
-// ======================================================
-// HABITS
-// ======================================================
-function buildHabits(){
-  if(!S.habits)S.habits=HABITS_DEFAULT;
-  const list=document.getElementById('habitList');list.innerHTML='';
-  const doneCount=S.habits.filter(h=>h.doneToday).length;
-  const total=S.habits.length;
-  // Header summary
-  const pct=total>0?Math.round(doneCount/total*100):0;
-  const headerEl=document.getElementById('habitsHeader');
-  if(headerEl){
-    headerEl.innerHTML=`
-      <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap">
-        <div style="flex:1">
-          <div style="font-family:var(--head);font-size:13px;font-weight:600">${doneCount}/${total} habits done today</div>
-          <div style="height:5px;background:var(--bg4);border-radius:3px;margin-top:6px;overflow:hidden">
-            <div style="height:100%;width:${pct}%;background:${pct===100?'var(--uni)':pct>=50?'var(--accent)':'var(--cds)'};border-radius:3px;transition:width .4s"></div>
-          </div>
-        </div>
-        <div style="font-family:var(--head);font-size:28px;font-weight:700;color:${pct===100?'var(--uni)':pct>=50?'var(--accent)':'var(--text3)'}">${pct}%</div>
-      </div>`;
-  }
-  S.habits.forEach((h,i)=>{
-    const streakClass=h.streak>=14?'fire':h.streak>=5?'hot':'';
-    const streakIcon=h.streak>=14?'🔥':h.streak>=5?'⚡':'🔥';
-    const item=document.createElement('div');
-    item.className=`habit-item ${h.doneToday?'done-item':''}`;
-    item.innerHTML=`
-      <div class="habit-check ${h.doneToday?'done':''}" onclick="toggleHabit(${i})">${h.doneToday?'✓':''}</div>
-      <span style="flex:1;font-size:13px;font-weight:${h.doneToday?'500':'400'};${h.doneToday?'color:var(--text)':'color:var(--text2)'}">${h.icon} ${h.name}</span>
-      <div class="habit-streak-badge ${streakClass}">${streakIcon} ${h.streak}d</div>`;
-    list.appendChild(item);
-  });
-}
 
-function toggleHabit(i){S.habits[i].doneToday=!S.habits[i].doneToday;if(S.habits[i].doneToday)S.habits[i].streak++;else if(S.habits[i].streak>0)S.habits[i].streak--;SS();buildHabits();}
-
-function addHabit(){
-  const inp=document.getElementById('newHabitInput');const name=inp.value.trim();if(!name)return;
-  if(!S.habits)S.habits=[];
-  S.habits.push({id:Date.now(),name,icon:'📌',streak:0,doneToday:false});inp.value='';SS();buildHabits();notify('Habit added!');
-}
 
 // ======================================================
 // STUDY LOG
