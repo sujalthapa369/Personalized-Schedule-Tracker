@@ -1,91 +1,91 @@
-// StudyOS Service Worker v4
-const CACHE_NAME = 'studyos-v4';
+// StudyOS Service Worker v6 — GitHub Pages compatible
+const CACHE = 'studyos-v6';
+const BASE = '/Personalized-Schedule-Tracker';
+const INDEX = BASE + '/index.html';
 
-// Install: skip pre-caching entirely — avoids 404 on './' 
-// Assets get cached on first fetch instead
 self.addEventListener('install', event => {
-  event.waitUntil(self.skipWaiting());
+  event.waitUntil(
+    fetch(INDEX)
+      .then(resp => {
+        if (!resp.ok) throw new Error('index.html fetch failed: ' + resp.status);
+        return caches.open(CACHE).then(cache => {
+          cache.put(BASE + '/', resp.clone());
+          return cache.put(INDEX, resp);
+        });
+      })
+      .catch(err => console.warn('SW install cache failed (non-fatal):', err))
+      .finally(() => self.skipWaiting())
+  );
 });
 
-// Activate: delete all old caches, claim clients immediately
 self.addEventListener('activate', event => {
   event.waitUntil(
     caches.keys()
       .then(keys => Promise.all(
-        keys.filter(k => k !== CACHE_NAME).map(k => caches.delete(k))
+        keys.filter(k => k !== CACHE).map(k => caches.delete(k))
       ))
       .then(() => self.clients.claim())
   );
 });
 
-// Fetch strategy
 self.addEventListener('fetch', event => {
-  const { request } = event;
-  const url = new URL(request.url);
+  const req = event.request;
+  const url = new URL(req.url);
 
-  // Skip non-GET, chrome-extension, and browser-internal requests
-  if (request.method !== 'GET') return;
-  if (url.protocol === 'chrome-extension:') return;
+  if (req.method !== 'GET') return;
   if (url.protocol !== 'http:' && url.protocol !== 'https:') return;
-
-  // Skip Supabase — always needs live network
   if (url.hostname.includes('supabase.co')) return;
 
-  // Navigation (opening the app): network first, fall back to cached index.html
-  if (request.mode === 'navigate') {
+  // Navigation — serve index.html
+  if (req.mode === 'navigate') {
     event.respondWith(
-      fetch(request)
-        .then(response => {
-          // Cache a fresh copy of index.html on every successful load
-          if (response.ok) {
-            const clone = response.clone();
-            caches.open(CACHE_NAME).then(c => c.put(request, clone));
+      fetch(req)
+        .then(resp => {
+          if (resp.ok) {
+            const clone = resp.clone();
+            caches.open(CACHE).then(c => {
+              c.put(BASE + '/', clone.clone());
+              c.put(INDEX, clone);
+            });
           }
-          return response;
+          return resp;
         })
         .catch(async () => {
-          // Offline: serve cached index.html
-          const cached = await caches.match(request)
-            || await caches.match('/index.html')
-            || await caches.match('./index.html');
-          return cached || new Response('App is offline. Please reconnect.', {
-            status: 503,
-            headers: { 'Content-Type': 'text/plain' }
-          });
+          const cached = await caches.match(INDEX)
+            || await caches.match(BASE + '/');
+          if (cached) return cached;
+          return new Response(
+            '<html><body style="font-family:sans-serif;text-align:center;padding:60px">' +
+            '<h2>StudyOS</h2><p>You are offline. Reconnect to load the app.</p>' +
+            '</body></html>',
+            { status: 200, headers: { 'Content-Type': 'text/html' } }
+          );
         })
     );
     return;
   }
 
-  // External CDN (fonts, supabase SDK, chart.js): network first, cache on success
+  // CDN (fonts, scripts)
   if (url.hostname !== self.location.hostname) {
     event.respondWith(
-      fetch(request)
+      fetch(req)
         .then(resp => {
-          if (resp && resp.ok) {
-            const clone = resp.clone();
-            caches.open(CACHE_NAME).then(c => c.put(request, clone));
-          }
+          if (resp.ok) caches.open(CACHE).then(c => c.put(req, resp.clone()));
           return resp;
         })
-        .catch(() => caches.match(request))
+        .catch(() => caches.match(req))
     );
     return;
   }
 
-  // Local assets (icons, manifest): cache first, network fallback
+  // Same-origin assets
   event.respondWith(
-    caches.match(request)
-      .then(cached => {
-        if (cached) return cached;
-        return fetch(request).then(resp => {
-          if (resp && resp.ok) {
-            const clone = resp.clone();
-            caches.open(CACHE_NAME).then(c => c.put(request, clone));
-          }
-          return resp;
-        });
-      })
-      .catch(() => new Response('Not found', { status: 404 }))
+    caches.match(req).then(cached => {
+      if (cached) return cached;
+      return fetch(req).then(resp => {
+        if (resp.ok) caches.open(CACHE).then(c => c.put(req, resp.clone()));
+        return resp;
+      });
+    })
   );
 });
