@@ -2449,6 +2449,20 @@ function _applyRemote(remote){
 // ── Rebuild ALL UI after a remote sync ──
 function _rebuildUI(){
   try{
+    // If user is actively typing in any input/textarea, delay the rebuild
+    // to avoid wiping what they're typing mid-keystroke
+    const focused = document.activeElement;
+    const userIsTyping = focused && (
+      focused.tagName === 'INPUT' || 
+      focused.tagName === 'TEXTAREA' || 
+      focused.tagName === 'SELECT'
+    );
+    if(userIsTyping){
+      // Retry in 3 seconds when they've likely stopped
+      setTimeout(_rebuildUI, 3000);
+      return;
+    }
+
     // Always rebuild these — they appear on every panel
     updateCountdown();
     buildSideStreak();
@@ -2461,6 +2475,7 @@ function _rebuildUI(){
     const rebuilders = {
       today:      ()=>{ buildSchedule(); },
       streak:     ()=>{ buildStreakGraph(); },
+      analytics:  ()=>{ buildAnalyticsCharts(); },
       retrocal:   ()=>{ buildRetroCalendar(); },
       progress:   ()=>{ buildProgressPanel(); },
       timer:      ()=>{ buildSessionLog(); updateTimerDisplay(); },
@@ -2477,11 +2492,11 @@ function _rebuildUI(){
 
     if(rebuilders[panelId]) rebuilders[panelId]();
 
-    // Always refresh schedule blocks on today panel even if another panel is active
+    // Only refresh today's schedule sidebar data (stats row + streak dots)
+    // when NOT on today panel — do NOT call buildLog/loadNotes as that
+    // clobbers notes and logs the user may be actively viewing/writing
     if(panelId !== 'today'){
-      buildSchedule();
-      buildLog();
-      loadNotes();
+      buildSchedule(); // updates stats row + goals sidebar
     }
 
   }catch(e){ console.warn('UI rebuild error:',e); }
@@ -2568,22 +2583,25 @@ function _startPolling(){
 }
 
 // ── Visibility change: pull from cloud when tab/app becomes visible ──
-// This is what makes phone↔laptop sync work when you switch between them
-document.addEventListener('visibilitychange', async()=>{
+// Delayed 1.5s so that if user switches tabs mid-keystroke, their input
+// finishes saving locally before we check for remote changes
+let _visibilityTimer = null;
+document.addEventListener('visibilitychange', ()=>{
   if(!document.hidden && _supa && _userId){
-    // App just became visible (user switched back to it)
-    try{
-      const{data,error}=await _supa
-        .from('studyos_data').select('data').eq('user_id',_userId).single();
-      if(!error&&data?.data){
-        const remote=data.data;
-        if((remote._savedAt||0)>(S._savedAt||0)){
-          _applyRemote(remote);
+    clearTimeout(_visibilityTimer);
+    _visibilityTimer = setTimeout(async()=>{
+      try{
+        const{data,error}=await _supa
+          .from('studyos_data').select('data').eq('user_id',_userId).single();
+        if(!error&&data?.data){
+          const remote=data.data;
+          if((remote._savedAt||0)>(S._savedAt||0)){
+            _applyRemote(remote);
+          }
         }
-      }
-      // Also flush any pending offline saves
-      if(_offline){_cloudSave();}
-    }catch(e){console.warn('Visibility sync failed:',e.message);}
+        if(_offline){_cloudSave();}
+      }catch(e){console.warn('Visibility sync failed:',e.message);}
+    }, 1500); // wait 1.5s before pulling — gives local SS() time to save first
   }
 });
 
@@ -3016,6 +3034,10 @@ function saveRetroDay(){
 // ======================================================
 function buildProgressPanel(){
   if(!S.progress)S.progress={};
+  // Don't rebuild if user is typing in a progress input — avoids wiping mid-keystroke
+  const focused = document.activeElement;
+  if(focused && focused.classList.contains('prog-inp')) return;
+
   const wrap=document.getElementById('progressPanels');wrap.innerHTML='';
   PROGRESS_DEFS.forEach(def=>{
     const card=document.createElement('div');card.className='prog-card';
@@ -3034,6 +3056,7 @@ function buildProgressPanel(){
   });
 }
 
+let _progSaveTimer = null;
 function updateProg(id,pctId,barId,val,max){
   if(!S.progress)S.progress={};
   const n=Math.min(max,Math.max(0,parseFloat(val)||0));
@@ -3042,7 +3065,9 @@ function updateProg(id,pctId,barId,val,max){
   const bar=document.getElementById(barId);const pctEl=document.getElementById(pctId);
   if(bar)bar.style.width=pct+'%';
   if(pctEl)pctEl.textContent=max===100?`${Math.round(n)}%`:`${Math.round(n)}/${max}`;
-  SS();
+  // Debounce: wait 800ms after last keystroke before saving to cloud
+  clearTimeout(_progSaveTimer);
+  _progSaveTimer=setTimeout(()=>SS(),800);
 }
 
 // ======================================================
@@ -3369,8 +3394,14 @@ function saveNote(){
 }
 function loadNotes(){
   if(!S.notes)S.notes={};
-  ['sci','maths','polity','geo','eco','llm'].forEach(k=>{const e=document.getElementById('note_'+k);if(e)e.value=S.notes[k]||'';});
-  const t=document.getElementById('todayNote');if(t)t.value=S.notes.today||'';
+  ['sci','maths','polity','geo','eco','llm'].forEach(k=>{
+    const e=document.getElementById('note_'+k);
+    if(!e)return;
+    // Only overwrite if this specific textarea is not focused
+    if(document.activeElement!==e) e.value=S.notes[k]||'';
+  });
+  const t=document.getElementById('todayNote');
+  if(t&&document.activeElement!==t) t.value=S.notes.today||'';
 }
 
 // ======================================================
@@ -4077,6 +4108,7 @@ function finishBoot(){
   buildSchedule();buildSideStreak();
   buildLog();buildSessionLog();updateTimerDisplay();
   loadNotes();buildSuggestions();
+  buildResourceList(); // ensure YT library loads on boot
   requestNotifPermission();
   setTimeout(scheduleBlockNotifications,1000);
 }
