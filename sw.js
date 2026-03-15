@@ -1,41 +1,91 @@
-const CACHE = 'studyos-v3';
-const CORE  = ['/', '/index.html', '/manifest.json'];
+// StudyOS Service Worker v4
+const CACHE_NAME = 'studyos-v4';
 
-// Install: cache core files
-self.addEventListener('install', e => {
-  e.waitUntil(
-    caches.open(CACHE).then(c => c.addAll(CORE).catch(()=>{}))
-  );
-  self.skipWaiting();
+// Install: skip pre-caching entirely — avoids 404 on './' 
+// Assets get cached on first fetch instead
+self.addEventListener('install', event => {
+  event.waitUntil(self.skipWaiting());
 });
 
-// Activate: clear old caches
-self.addEventListener('activate', e => {
-  e.waitUntil(
-    caches.keys().then(keys =>
-      Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k)))
-    )
+// Activate: delete all old caches, claim clients immediately
+self.addEventListener('activate', event => {
+  event.waitUntil(
+    caches.keys()
+      .then(keys => Promise.all(
+        keys.filter(k => k !== CACHE_NAME).map(k => caches.delete(k))
+      ))
+      .then(() => self.clients.claim())
   );
-  self.clients.claim();
 });
 
-// Fetch: network first for navigation, cache first for assets
-self.addEventListener('fetch', e => {
-  if (e.request.mode === 'navigate') {
-    e.respondWith(
-      fetch(e.request).catch(() => caches.match('/index.html'))
+// Fetch strategy
+self.addEventListener('fetch', event => {
+  const { request } = event;
+  const url = new URL(request.url);
+
+  // Skip non-GET, chrome-extension, and browser-internal requests
+  if (request.method !== 'GET') return;
+  if (url.protocol === 'chrome-extension:') return;
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') return;
+
+  // Skip Supabase — always needs live network
+  if (url.hostname.includes('supabase.co')) return;
+
+  // Navigation (opening the app): network first, fall back to cached index.html
+  if (request.mode === 'navigate') {
+    event.respondWith(
+      fetch(request)
+        .then(response => {
+          // Cache a fresh copy of index.html on every successful load
+          if (response.ok) {
+            const clone = response.clone();
+            caches.open(CACHE_NAME).then(c => c.put(request, clone));
+          }
+          return response;
+        })
+        .catch(async () => {
+          // Offline: serve cached index.html
+          const cached = await caches.match(request)
+            || await caches.match('/index.html')
+            || await caches.match('./index.html');
+          return cached || new Response('App is offline. Please reconnect.', {
+            status: 503,
+            headers: { 'Content-Type': 'text/plain' }
+          });
+        })
     );
     return;
   }
-  e.respondWith(
-    caches.match(e.request).then(cached => {
-      if (cached) return cached;
-      return fetch(e.request).then(resp => {
-        if (!resp || resp.status !== 200) return resp;
-        const clone = resp.clone();
-        caches.open(CACHE).then(c => c.put(e.request, clone));
-        return resp;
-      });
-    })
+
+  // External CDN (fonts, supabase SDK, chart.js): network first, cache on success
+  if (url.hostname !== self.location.hostname) {
+    event.respondWith(
+      fetch(request)
+        .then(resp => {
+          if (resp && resp.ok) {
+            const clone = resp.clone();
+            caches.open(CACHE_NAME).then(c => c.put(request, clone));
+          }
+          return resp;
+        })
+        .catch(() => caches.match(request))
+    );
+    return;
+  }
+
+  // Local assets (icons, manifest): cache first, network fallback
+  event.respondWith(
+    caches.match(request)
+      .then(cached => {
+        if (cached) return cached;
+        return fetch(request).then(resp => {
+          if (resp && resp.ok) {
+            const clone = resp.clone();
+            caches.open(CACHE_NAME).then(c => c.put(request, clone));
+          }
+          return resp;
+        });
+      })
+      .catch(() => new Response('Not found', { status: 404 }))
   );
 });
